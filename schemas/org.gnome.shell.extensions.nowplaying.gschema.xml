@@ -27,14 +27,5 @@
       <summary>Hide when no players</summary>
       <description>Remove the panel indicator when no media players are available.</description>
     </key>
-    <key name="title-scroll-mode" type="s">
-      <default>'bounce'</default>
-      <summary>Title scroll style</summary>
-      <description>How long track titles scroll in the media card.</description>
-      <choices>
-        <choice value='bounce'/>
-        <choice value='continuous'/>
-      </choices>
-    </key>
   </schema>
 </schemalist>
