@@ -7,6 +7,7 @@ import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/
 const PANEL_POSITION_KEY = 'panel-position';
 const PANEL_INDEX_KEY = 'panel-index';
 const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
+const HIDE_WHEN_NO_PLAYERS_KEY = 'hide-when-no-players';
 const PANEL_POSITIONS = ['left', 'center', 'right'] as const;
 
 export default class MediaControlPreferences extends ExtensionPreferences {
@@ -57,8 +58,20 @@ export default class MediaControlPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
+    const hideWhenEmptyRow = new Adw.SwitchRow({
+      title: 'Hide when no players',
+      subtitle: 'Remove the panel indicator when nothing is playing.',
+    });
+    settings.bind(
+      HIDE_WHEN_NO_PLAYERS_KEY,
+      hideWhenEmptyRow,
+      'active',
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
     group.add(positionRow);
     group.add(indexRow);
+    group.add(hideWhenEmptyRow);
     page.add(group);
 
     const appearanceGroup = new Adw.PreferencesGroup({

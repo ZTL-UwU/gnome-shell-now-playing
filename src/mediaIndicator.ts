@@ -10,6 +10,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
+const HIDE_WHEN_NO_PLAYERS_KEY = 'hide-when-no-players';
 const PANEL_MAX_CHARS = 24;
 const TITLE_SCROLL_INTERVAL_MS = 50;
 const TITLE_SCROLL_PX_PER_TICK = 1;
@@ -360,6 +361,7 @@ export const MediaIndicator = GObject.registerClass(
     private _coverPlayIcon!: St.Icon;
     private _settings!: Gio.Settings;
     private _grayscaleSettingsId = 0;
+    private _hideWhenNoPlayersSettingsId = 0;
     private _panelCoverHovered = false;
     private _label!: St.Label;
     private _cardItem!: InstanceType<typeof MediaCardItem>;
@@ -444,7 +446,12 @@ export const MediaIndicator = GObject.registerClass(
         `changed::${ALBUM_ART_GRAYSCALE_KEY}`,
         () => this._applyAlbumArtGrayscale(),
       );
+      this._hideWhenNoPlayersSettingsId = settings.connect(
+        `changed::${HIDE_WHEN_NO_PLAYERS_KEY}`,
+        () => this._updatePanelVisibility(),
+      );
       this._applyAlbumArtGrayscale();
+      this._updatePanelVisibility();
     }
 
     _buildMenu() {
@@ -527,35 +534,46 @@ export const MediaIndicator = GObject.registerClass(
         this._label.hide();
         this._coverButton.reactive = false;
         this.setSensitive(true);
-        return;
-      }
-
-      const title = player.trackTitle;
-      const artists = formatArtists(player.trackArtists);
-      const playing = player.status === 'Playing';
-
-      this._icon.hide();
-      this._coverButton.show();
-      this._coverButton.reactive = true;
-      this._setPanelCover(player.trackCoverUrl);
-      this._setPanelPlaying(playing);
-
-      if (title) {
-        this._label.text = truncate(title, PANEL_MAX_CHARS);
-        this._label.show();
       }
       else {
-        this._label.hide();
+        const title = player.trackTitle;
+        const artists = formatArtists(player.trackArtists);
+        const playing = player.status === 'Playing';
+
+        this._icon.hide();
+        this._coverButton.show();
+        this._coverButton.reactive = true;
+        this._setPanelCover(player.trackCoverUrl);
+        this._setPanelPlaying(playing);
+
+        if (title) {
+          this._label.text = truncate(title, PANEL_MAX_CHARS);
+          this._label.show();
+        }
+        else {
+          this._label.hide();
+        }
+
+        this._cardItem.setCoverUrl(player.trackCoverUrl);
+        this._cardItem.setTitle(title || 'Unknown title');
+        this._cardItem.setSubtitle(artists || 'Unknown artist');
+        this._cardItem.setPlaying(playing);
+
+        this._cardItem.prevButton.reactive = player.canGoPrevious;
+        this._cardItem.nextButton.reactive = player.canGoNext;
+        this.setSensitive(true);
       }
 
-      this._cardItem.setCoverUrl(player.trackCoverUrl);
-      this._cardItem.setTitle(title || 'Unknown title');
-      this._cardItem.setSubtitle(artists || 'Unknown artist');
-      this._cardItem.setPlaying(playing);
+      this._updatePanelVisibility();
+    }
 
-      this._cardItem.prevButton.reactive = player.canGoPrevious;
-      this._cardItem.nextButton.reactive = player.canGoNext;
-      this.setSensitive(true);
+    _updatePanelVisibility() {
+      const hideWhenEmpty = this._settings?.get_boolean(HIDE_WHEN_NO_PLAYERS_KEY) ?? false;
+      const hasPlayers = (this._mpris.players as MprisPlayer[]).length > 0;
+      if (hideWhenEmpty && !hasPlayers)
+        this.hide();
+      else
+        this.show();
     }
 
     _setPanelCover(url: string) {
@@ -628,6 +646,10 @@ export const MediaIndicator = GObject.registerClass(
       if (this._grayscaleSettingsId) {
         this._settings.disconnect(this._grayscaleSettingsId);
         this._grayscaleSettingsId = 0;
+      }
+      if (this._hideWhenNoPlayersSettingsId) {
+        this._settings.disconnect(this._hideWhenNoPlayersSettingsId);
+        this._hideWhenNoPlayersSettingsId = 0;
       }
       if (this._panelCoverDesaturate) {
         this._coverBg.remove_effect(this._panelCoverDesaturate);

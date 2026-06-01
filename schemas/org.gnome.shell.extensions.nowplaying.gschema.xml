@@ -22,5 +22,10 @@
       <summary>Grayscale album art</summary>
       <description>Display album artwork in black and white.</description>
     </key>
+    <key name="hide-when-no-players" type="b">
+      <default>true</default>
+      <summary>Hide when no players</summary>
+      <description>Remove the panel indicator when no media players are available.</description>
+    </key>
   </schema>
 </schemalist>
