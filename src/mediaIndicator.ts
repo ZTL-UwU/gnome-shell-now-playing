@@ -11,10 +11,14 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
 const HIDE_WHEN_NO_PLAYERS_KEY = 'hide-when-no-players';
+const TITLE_SCROLL_MODE_KEY = 'title-scroll-mode';
+
+type TitleScrollMode = 'bounce' | 'continuous';
 const PANEL_MAX_CHARS = 24;
 const TITLE_SCROLL_INTERVAL_MS = 50;
 const TITLE_SCROLL_PX_PER_TICK = 1;
 const TITLE_SCROLL_PAUSE_TICKS = 30;
+const TITLE_SCROLL_CONTINUOUS_GAP_PX = 32;
 
 interface MprisPlayer {
   status: string;
@@ -51,24 +55,41 @@ function truncate(text: string, maxChars: number): string {
 class ScrollingTitle {
   readonly actor: St.Widget;
   private readonly _clip: St.Widget;
+  private readonly _track: St.BoxLayout;
   private readonly _label: St.Label;
+  private readonly _continuousGap: St.Widget;
+  private readonly _labelClone: St.Label;
   private _timeoutId = 0;
   private _layoutHandlerId = 0;
   private _scrollPosition = 0;
   private _scrollDirection = -1;
   private _pauseTicks = 0;
   private _overflow = 0;
+  private _segmentWidth = 0;
+  private _scrollMode: TitleScrollMode = 'bounce';
 
   constructor() {
     this._label = new St.Label({
       style_class: 'media-control-card-title',
     });
+    this._labelClone = new St.Label({
+      style_class: 'media-control-card-title',
+      visible: false,
+    });
+    this._continuousGap = new St.Widget({
+      width: TITLE_SCROLL_CONTINUOUS_GAP_PX,
+      visible: false,
+    });
+    this._track = new St.BoxLayout();
+    this._track.add_child(this._label);
+    this._track.add_child(this._continuousGap);
+    this._track.add_child(this._labelClone);
     this._clip = new St.Widget({
       style_class: 'media-control-card-title-clip',
       clip_to_allocation: true,
       x_expand: true,
     });
-    this._clip.add_child(this._label);
+    this._clip.add_child(this._track);
     this.actor = this._clip;
     this._clip.connect('notify::visible', () => {
       if (this._clip.visible)
@@ -81,8 +102,17 @@ class ScrollingTitle {
   setText(text: string) {
     this._stopScroll();
     this._label.text = text;
-    this._label.translation_x = 0;
+    this._labelClone.text = text;
+    this._applyScrollTranslation(0);
     this._scheduleScrollUpdate();
+  }
+
+  setScrollMode(mode: TitleScrollMode) {
+    if (this._scrollMode === mode)
+      return;
+    this._scrollMode = mode;
+    if (this._label.text)
+      this._scheduleScrollUpdate();
   }
 
   destroy() {
@@ -116,17 +146,41 @@ class ScrollingTitle {
     this._layoutHandlerId = this._clip.connect('notify::width', update);
   }
 
+  private _applyScrollTranslation(position: number) {
+    if (this._scrollMode === 'continuous') {
+      this._label.translation_x = 0;
+      this._track.translation_x = position;
+      return;
+    }
+    this._track.translation_x = 0;
+    this._label.translation_x = position;
+  }
+
+  private _setContinuousCloneVisible(visible: boolean) {
+    this._labelClone.visible = visible;
+    this._continuousGap.visible = visible;
+    if (!visible)
+      this._track.translation_x = 0;
+  }
+
   private _startScrollIfNeeded() {
     this._stopScroll();
 
     const clipWidth = this._clip.width;
     const [, labelWidth] = this._label.get_preferred_width(-1);
+    const continuous = this._scrollMode === 'continuous';
+    this._setContinuousCloneVisible(continuous);
+
     if (labelWidth <= clipWidth) {
-      this._label.translation_x = 0;
+      this._applyScrollTranslation(0);
       return;
     }
 
-    this._overflow = labelWidth - clipWidth;
+    if (continuous)
+      this._segmentWidth = labelWidth + TITLE_SCROLL_CONTINUOUS_GAP_PX;
+    else
+      this._overflow = labelWidth - clipWidth;
+
     this._scrollPosition = 0;
     this._scrollDirection = -1;
     this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
@@ -144,23 +198,30 @@ class ScrollingTitle {
           return GLib.SOURCE_CONTINUE;
         }
 
-        const pxPerTick
-          = this._scrollDirection === 1
-            ? TITLE_SCROLL_PX_PER_TICK * 2
-            : TITLE_SCROLL_PX_PER_TICK;
-        this._scrollPosition += this._scrollDirection * pxPerTick;
-        if (this._scrollPosition <= -this._overflow) {
-          this._scrollPosition = -this._overflow;
-          this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
-          this._scrollDirection = 1;
+        if (continuous) {
+          this._scrollPosition -= TITLE_SCROLL_PX_PER_TICK;
+          while (this._scrollPosition <= -this._segmentWidth)
+            this._scrollPosition += this._segmentWidth;
         }
-        else if (this._scrollPosition >= 0) {
-          this._scrollPosition = 0;
-          this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
-          this._scrollDirection = -1;
+        else {
+          const pxPerTick
+            = this._scrollDirection === 1
+              ? TITLE_SCROLL_PX_PER_TICK * 2
+              : TITLE_SCROLL_PX_PER_TICK;
+          this._scrollPosition += this._scrollDirection * pxPerTick;
+          if (this._scrollPosition <= -this._overflow) {
+            this._scrollPosition = -this._overflow;
+            this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
+            this._scrollDirection = 1;
+          }
+          else if (this._scrollPosition >= 0) {
+            this._scrollPosition = 0;
+            this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
+            this._scrollDirection = -1;
+          }
         }
 
-        this._label.translation_x = this._scrollPosition;
+        this._applyScrollTranslation(this._scrollPosition);
         return GLib.SOURCE_CONTINUE;
       },
     );
@@ -321,6 +382,10 @@ const MediaCardItem = GObject.registerClass(
       this._titleScroller.setText(title);
     }
 
+    setTitleScrollMode(mode: TitleScrollMode) {
+      this._titleScroller.setScrollMode(mode);
+    }
+
     override destroy(): void {
       this.setGrayscale(false);
       this._titleScroller.destroy();
@@ -362,6 +427,7 @@ export const MediaIndicator = GObject.registerClass(
     private _settings!: Gio.Settings;
     private _grayscaleSettingsId = 0;
     private _hideWhenNoPlayersSettingsId = 0;
+    private _titleScrollModeSettingsId = 0;
     private _panelCoverHovered = false;
     private _label!: St.Label;
     private _cardItem!: InstanceType<typeof MediaCardItem>;
@@ -450,8 +516,13 @@ export const MediaIndicator = GObject.registerClass(
         `changed::${HIDE_WHEN_NO_PLAYERS_KEY}`,
         () => this._updatePanelVisibility(),
       );
+      this._titleScrollModeSettingsId = settings.connect(
+        `changed::${TITLE_SCROLL_MODE_KEY}`,
+        () => this._applyTitleScrollMode(),
+      );
       this._applyAlbumArtGrayscale();
       this._updatePanelVisibility();
+      this._applyTitleScrollMode();
     }
 
     _buildMenu() {
@@ -612,6 +683,13 @@ export const MediaIndicator = GObject.registerClass(
       }
     }
 
+    _applyTitleScrollMode() {
+      const mode = this._settings.get_string(TITLE_SCROLL_MODE_KEY);
+      this._cardItem.setTitleScrollMode(
+        mode === 'continuous' ? 'continuous' : 'bounce',
+      );
+    }
+
     _applyAlbumArtGrayscale() {
       const enabled = this._settings.get_boolean(ALBUM_ART_GRAYSCALE_KEY);
       if (enabled) {
@@ -650,6 +728,10 @@ export const MediaIndicator = GObject.registerClass(
       if (this._hideWhenNoPlayersSettingsId) {
         this._settings.disconnect(this._hideWhenNoPlayersSettingsId);
         this._hideWhenNoPlayersSettingsId = 0;
+      }
+      if (this._titleScrollModeSettingsId) {
+        this._settings.disconnect(this._titleScrollModeSettingsId);
+        this._titleScrollModeSettingsId = 0;
       }
       if (this._panelCoverDesaturate) {
         this._coverBg.remove_effect(this._panelCoverDesaturate);

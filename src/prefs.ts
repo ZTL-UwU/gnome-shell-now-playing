@@ -8,7 +8,9 @@ const PANEL_POSITION_KEY = 'panel-position';
 const PANEL_INDEX_KEY = 'panel-index';
 const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
 const HIDE_WHEN_NO_PLAYERS_KEY = 'hide-when-no-players';
+const TITLE_SCROLL_MODE_KEY = 'title-scroll-mode';
 const PANEL_POSITIONS = ['left', 'center', 'right'] as const;
+const TITLE_SCROLL_MODES = ['bounce', 'continuous'] as const;
 
 export default class MediaControlPreferences extends ExtensionPreferences {
   async fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
@@ -88,6 +90,30 @@ export default class MediaControlPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
     appearanceGroup.add(grayscaleRow);
+
+    const titleScrollRow = new Adw.ComboRow({
+      title: 'Title scrolling',
+      subtitle: 'How long track titles scroll in the media card.',
+      model: new Gtk.StringList({
+        strings: ['Bounce', 'Continuous'],
+      }),
+    });
+
+    const setTitleScrollRowFromSettings = () => {
+      const index = TITLE_SCROLL_MODES.indexOf(
+        settings.get_string(TITLE_SCROLL_MODE_KEY) as typeof TITLE_SCROLL_MODES[number],
+      );
+      if (index >= 0)
+        titleScrollRow.selected = index;
+    };
+
+    setTitleScrollRowFromSettings();
+    titleScrollRow.connect('notify::selected', () => {
+      settings.set_string(TITLE_SCROLL_MODE_KEY, TITLE_SCROLL_MODES[titleScrollRow.selected]);
+    });
+    settings.connect(`changed::${TITLE_SCROLL_MODE_KEY}`, setTitleScrollRowFromSettings);
+
+    appearanceGroup.add(titleScrollRow);
     page.add(appearanceGroup);
 
     window.add(page);
