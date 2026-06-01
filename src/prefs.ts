@@ -6,6 +6,7 @@ import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/
 
 const PANEL_POSITION_KEY = 'panel-position';
 const PANEL_INDEX_KEY = 'panel-index';
+const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
 const PANEL_POSITIONS = ['left', 'center', 'right'] as const;
 
 export default class MediaControlPreferences extends ExtensionPreferences {
@@ -59,6 +60,23 @@ export default class MediaControlPreferences extends ExtensionPreferences {
     group.add(positionRow);
     group.add(indexRow);
     page.add(group);
+
+    const appearanceGroup = new Adw.PreferencesGroup({
+      title: 'Appearance',
+    });
+    const grayscaleRow = new Adw.SwitchRow({
+      title: 'Grayscale album art',
+      subtitle: 'Show album artwork in black and white.',
+    });
+    settings.bind(
+      ALBUM_ART_GRAYSCALE_KEY,
+      grayscaleRow,
+      'active',
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+    appearanceGroup.add(grayscaleRow);
+    page.add(appearanceGroup);
+
     window.add(page);
   }
 }

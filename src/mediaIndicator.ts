@@ -1,3 +1,4 @@
+import type Gio from 'gi://Gio';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -8,6 +9,7 @@ import { MprisSource } from 'resource:///org/gnome/shell/ui/mpris.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
+const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
 const PANEL_MAX_CHARS = 24;
 const TITLE_SCROLL_INTERVAL_MS = 50;
 const TITLE_SCROLL_PX_PER_TICK = 1;
@@ -195,6 +197,7 @@ function makeCircleButton(
 const MediaCardItem = GObject.registerClass(
   class MediaCardItem extends PopupMenu.PopupBaseMenuItem {
     private _cover!: St.Widget;
+    private _coverDesaturate: Clutter.DesaturateEffect | null = null;
     private _titleScroller!: ScrollingTitle;
     private _subtitleLabel!: St.Label;
 
@@ -318,12 +321,27 @@ const MediaCardItem = GObject.registerClass(
     }
 
     override destroy(): void {
+      this.setGrayscale(false);
       this._titleScroller.destroy();
       super.destroy();
     }
 
     setSubtitle(subtitle: string) {
       this._subtitleLabel.text = subtitle;
+    }
+
+    setGrayscale(enabled: boolean) {
+      if (enabled) {
+        if (!this._coverDesaturate) {
+          this._coverDesaturate = new Clutter.DesaturateEffect({ factor: 1.0 });
+          this._cover.add_effect(this._coverDesaturate);
+        }
+        return;
+      }
+      if (this._coverDesaturate) {
+        this._cover.remove_effect(this._coverDesaturate);
+        this._coverDesaturate = null;
+      }
     }
   },
 );
@@ -338,7 +356,10 @@ export const MediaIndicator = GObject.registerClass(
     private _icon!: St.Icon;
     private _coverButton!: St.Button;
     private _coverBg!: St.Widget;
+    private _panelCoverDesaturate: Clutter.DesaturateEffect | null = null;
     private _coverPlayIcon!: St.Icon;
+    private _settings!: Gio.Settings;
+    private _grayscaleSettingsId = 0;
     private _panelCoverHovered = false;
     private _label!: St.Label;
     private _cardItem!: InstanceType<typeof MediaCardItem>;
@@ -412,6 +433,18 @@ export const MediaIndicator = GObject.registerClass(
 
       this._buildMenu();
       this._onPlayersChanged();
+    }
+
+    bindSettings(settings: Gio.Settings) {
+      if (this._grayscaleSettingsId)
+        return;
+
+      this._settings = settings;
+      this._grayscaleSettingsId = settings.connect(
+        `changed::${ALBUM_ART_GRAYSCALE_KEY}`,
+        () => this._applyAlbumArtGrayscale(),
+      );
+      this._applyAlbumArtGrayscale();
     }
 
     _buildMenu() {
@@ -561,6 +594,21 @@ export const MediaIndicator = GObject.registerClass(
       }
     }
 
+    _applyAlbumArtGrayscale() {
+      const enabled = this._settings.get_boolean(ALBUM_ART_GRAYSCALE_KEY);
+      if (enabled) {
+        if (!this._panelCoverDesaturate) {
+          this._panelCoverDesaturate = new Clutter.DesaturateEffect({ factor: 1.0 });
+          this._coverBg.add_effect(this._panelCoverDesaturate);
+        }
+      }
+      else if (this._panelCoverDesaturate) {
+        this._coverBg.remove_effect(this._panelCoverDesaturate);
+        this._panelCoverDesaturate = null;
+      }
+      this._cardItem.setGrayscale(enabled);
+    }
+
     override destroy(): void {
       if (!this._watchIds) {
         super.destroy();
@@ -575,6 +623,15 @@ export const MediaIndicator = GObject.registerClass(
       if (this._activePlayer && this._playerChangedId) {
         this._activePlayer.disconnect(this._playerChangedId);
         this._playerChangedId = 0;
+      }
+
+      if (this._grayscaleSettingsId) {
+        this._settings.disconnect(this._grayscaleSettingsId);
+        this._grayscaleSettingsId = 0;
+      }
+      if (this._panelCoverDesaturate) {
+        this._coverBg.remove_effect(this._panelCoverDesaturate);
+        this._panelCoverDesaturate = null;
       }
 
       super.destroy();

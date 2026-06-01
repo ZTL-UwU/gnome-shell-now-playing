@@ -43,12 +43,12 @@
 .media-control-card {
   width: 400px;
   height: 300px;
-  border-radius: 16px;
+  border-radius: 18px;
 }
 
 .media-control-card-cover {
   background-color: #2b2b2b;
-  border-radius: 16px;
+  border-radius: 18px;
 }
 
 .media-control-card-cover-loaded {
@@ -56,7 +56,7 @@
 }
 
 .media-control-card-overlay {
-  border-radius: 16px;
+  border-radius: 18px;
   background-gradient-direction: vertical;
   background-gradient-start: rgba(0, 0, 0, 0.05);
   background-gradient-end: rgba(0, 0, 0, 0.8);

@@ -17,5 +17,10 @@
       <description>Order within the panel section (0 is leftmost).</description>
       <range min="0" max="99"/>
     </key>
+    <key name="album-art-grayscale" type="b">
+      <default>false</default>
+      <summary>Grayscale album art</summary>
+      <description>Display album artwork in black and white.</description>
+    </key>
   </schema>
 </schemalist>

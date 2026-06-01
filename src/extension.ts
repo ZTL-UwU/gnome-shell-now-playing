@@ -39,6 +39,7 @@ export default class MediaControlExtension extends Extension {
       return;
 
     this._indicator = new MediaIndicator();
+    this._indicator.bindSettings(this._settings);
     const index = this._settings.get_int(PANEL_INDEX_KEY);
     const position = this._settings.get_string(PANEL_POSITION_KEY);
     Main.panel.addToStatusArea(STATUS_AREA_ROLE, this._indicator, index, position);
