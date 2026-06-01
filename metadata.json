@@ -1,0 +1,12 @@
+{
+  "uuid": "nowplaying@ztluwu.dev",
+  "name": "Now Playing",
+  "description": "Control media playback from the GNOME Shell panel.",
+  "url": "https://github.com/ZTL-UwU/media-control",
+  "shell-version": [
+    "49",
+    "50"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.nowplaying",
+  "version": 1
+}

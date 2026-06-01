@@ -1,0 +1,137 @@
+.media-control-panel-box {
+  spacing: 6px;
+}
+
+.media-control-panel-label {
+  max-width: 8em;
+}
+
+.media-control-panel-cover-button {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border-radius: 999px;
+  border: none;
+}
+
+.media-control-panel-cover-bg {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.media-control-panel-cover-bg-loaded {
+  background-color: transparent;
+}
+
+.media-control-panel-play-icon {
+  color: #ffffff;
+}
+
+/* Make the popup hug the card edge-to-edge. */
+.media-control-menu-box {
+  padding: 0;
+}
+
+.media-control-card-item {
+  padding: 0;
+  margin: 0;
+}
+
+.media-control-card {
+  width: 400px;
+  height: 300px;
+  border-radius: 16px;
+}
+
+.media-control-card-cover {
+  background-color: #2b2b2b;
+  border-radius: 16px;
+}
+
+.media-control-card-cover-loaded {
+  background-color: transparent;
+}
+
+.media-control-card-overlay {
+  border-radius: 16px;
+  background-gradient-direction: vertical;
+  background-gradient-start: rgba(0, 0, 0, 0.05);
+  background-gradient-end: rgba(0, 0, 0, 0.8);
+}
+
+.media-control-card-content {
+  padding: 18px;
+}
+
+.media-control-card-bottom {
+  spacing: 14px;
+}
+
+.media-control-card-text {
+  spacing: 4px;
+}
+
+.media-control-card-title-clip {
+  max-width: 200px;
+}
+
+.media-control-card-title {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.media-control-card-subtitle {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  max-width: 280px;
+}
+
+.media-control-card-controls {
+  spacing: 12px;
+}
+
+.media-control-circle-button {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  border: none;
+  transition-duration: 150ms;
+}
+
+.media-control-circle-button:hover,
+.media-control-circle-button:focus {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.media-control-circle-button:active {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.media-control-circle-button:insensitive {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.media-control-play-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.95);
+  color: #1a1a1a;
+  border: none;
+  transition-duration: 150ms;
+}
+
+.media-control-play-button:hover,
+.media-control-play-button:focus {
+  background-color: #ffffff;
+}
+
+.media-control-play-button:active {
+  background-color: rgba(255, 255, 255, 0.85);
+}

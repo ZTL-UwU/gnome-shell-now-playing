@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": [
+      "ES2023"
+    ],
+    "useDefineForClassFields": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "outDir": "./dist",
+    "sourceMap": false,
+    "skipLibCheck": true
+  },
+  "files": [
+    "src/extension.ts",
+    "src/prefs.ts"
+  ],
+  "include": [
+    "src/ambient.d.ts"
+  ]
+}

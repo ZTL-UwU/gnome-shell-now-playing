@@ -1,0 +1,25 @@
+{
+  "name": "now-playing",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "lint:dist": "eslint dist --fix --no-ignore",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@girs/gjs": "^4.0.4",
+    "@girs/gnome-shell": "^50.0.0"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.0.0",
+    "@types/bun": "latest",
+    "eslint": "^10.4.1",
+    "taze": "^19.14.1"
+  }
+}

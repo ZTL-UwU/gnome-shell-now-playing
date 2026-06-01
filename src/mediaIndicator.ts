@@ -1,0 +1,583 @@
+import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
+import Pango from 'gi://Pango';
+import St from 'gi://St';
+
+import { MprisSource } from 'resource:///org/gnome/shell/ui/mpris.js';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+
+const PANEL_MAX_CHARS = 24;
+const TITLE_SCROLL_INTERVAL_MS = 50;
+const TITLE_SCROLL_PX_PER_TICK = 1;
+const TITLE_SCROLL_PAUSE_TICKS = 30;
+
+interface MprisPlayer {
+  status: string;
+  trackArtists: string | string[];
+  trackTitle: string;
+  trackCoverUrl: string;
+  canGoNext: boolean;
+  canGoPrevious: boolean;
+  playPause: () => void;
+  next: () => void;
+  previous: () => void;
+  connect: (signal: 'changed', callback: () => void) => number;
+  disconnect: (id: number) => void;
+}
+
+function formatArtists(artists: string | string[]): string {
+  if (Array.isArray(artists))
+    return artists.join(', ');
+  return artists;
+}
+
+function pickActivePlayer(players: MprisPlayer[]): MprisPlayer | null {
+  if (players.length === 0)
+    return null;
+  return players.find(player => player.status === 'Playing') ?? players[0];
+}
+
+function truncate(text: string, maxChars: number): string {
+  if (text.length <= maxChars)
+    return text;
+  return `${text.slice(0, maxChars - 1)}…`;
+}
+
+class ScrollingTitle {
+  readonly actor: St.Widget;
+  private readonly _clip: St.Widget;
+  private readonly _label: St.Label;
+  private _timeoutId = 0;
+  private _layoutHandlerId = 0;
+  private _scrollPosition = 0;
+  private _scrollDirection = -1;
+  private _pauseTicks = 0;
+  private _overflow = 0;
+
+  constructor() {
+    this._label = new St.Label({
+      style_class: 'media-control-card-title',
+    });
+    this._clip = new St.Widget({
+      style_class: 'media-control-card-title-clip',
+      clip_to_allocation: true,
+      x_expand: true,
+    });
+    this._clip.add_child(this._label);
+    this.actor = this._clip;
+    this._clip.connect('notify::visible', () => {
+      if (this._clip.visible)
+        this._scheduleScrollUpdate();
+      else
+        this._stopScroll();
+    });
+  }
+
+  setText(text: string) {
+    this._stopScroll();
+    this._label.text = text;
+    this._label.translation_x = 0;
+    this._scheduleScrollUpdate();
+  }
+
+  destroy() {
+    if (this._layoutHandlerId) {
+      this._clip.disconnect(this._layoutHandlerId);
+      this._layoutHandlerId = 0;
+    }
+    this._stopScroll();
+  }
+
+  private _scheduleScrollUpdate() {
+    if (this._layoutHandlerId) {
+      this._clip.disconnect(this._layoutHandlerId);
+      this._layoutHandlerId = 0;
+    }
+
+    const update = () => {
+      if (this._clip.width <= 0)
+        return;
+      if (this._layoutHandlerId) {
+        this._clip.disconnect(this._layoutHandlerId);
+        this._layoutHandlerId = 0;
+      }
+      this._startScrollIfNeeded();
+    };
+
+    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      update();
+      return GLib.SOURCE_REMOVE;
+    });
+    this._layoutHandlerId = this._clip.connect('notify::width', update);
+  }
+
+  private _startScrollIfNeeded() {
+    this._stopScroll();
+
+    const clipWidth = this._clip.width;
+    const [, labelWidth] = this._label.get_preferred_width(-1);
+    if (labelWidth <= clipWidth) {
+      this._label.translation_x = 0;
+      return;
+    }
+
+    this._overflow = labelWidth - clipWidth;
+    this._scrollPosition = 0;
+    this._scrollDirection = -1;
+    this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
+    this._timeoutId = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT,
+      TITLE_SCROLL_INTERVAL_MS,
+      () => {
+        if (!this._clip.visible) {
+          this._stopScroll();
+          return GLib.SOURCE_REMOVE;
+        }
+
+        if (this._pauseTicks > 0) {
+          this._pauseTicks--;
+          return GLib.SOURCE_CONTINUE;
+        }
+
+        const pxPerTick
+          = this._scrollDirection === 1
+            ? TITLE_SCROLL_PX_PER_TICK * 2
+            : TITLE_SCROLL_PX_PER_TICK;
+        this._scrollPosition += this._scrollDirection * pxPerTick;
+        if (this._scrollPosition <= -this._overflow) {
+          this._scrollPosition = -this._overflow;
+          this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
+          this._scrollDirection = 1;
+        }
+        else if (this._scrollPosition >= 0) {
+          this._scrollPosition = 0;
+          this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
+          this._scrollDirection = -1;
+        }
+
+        this._label.translation_x = this._scrollPosition;
+        return GLib.SOURCE_CONTINUE;
+      },
+    );
+  }
+
+  private _stopScroll() {
+    if (this._timeoutId) {
+      GLib.source_remove(this._timeoutId);
+      this._timeoutId = 0;
+    }
+  }
+}
+
+function makeCircleButton(
+  iconName: string,
+  styleClass: string,
+  iconSize: number,
+): { button: St.Button; icon: St.Icon } {
+  const icon = new St.Icon({
+    icon_name: iconName,
+    icon_size: iconSize,
+    x_align: Clutter.ActorAlign.CENTER,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  const button = new St.Button({
+    style_class: styleClass,
+    child: icon,
+    can_focus: true,
+    x_align: Clutter.ActorAlign.CENTER,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  return { button, icon };
+}
+
+const MediaCardItem = GObject.registerClass(
+  class MediaCardItem extends PopupMenu.PopupBaseMenuItem {
+    private _cover!: St.Widget;
+    private _titleScroller!: ScrollingTitle;
+    private _subtitleLabel!: St.Label;
+
+    prevButton!: St.Button;
+    nextButton!: St.Button;
+    playButton!: St.Button;
+    private _playIcon!: St.Icon;
+
+    _init() {
+      super._init({
+        reactive: false,
+        can_focus: false,
+        style_class: 'media-control-card-item',
+      });
+
+      const card = new St.Widget({
+        style_class: 'media-control-card',
+        layout_manager: new Clutter.BinLayout(),
+        x_expand: true,
+        y_expand: true,
+      });
+
+      this._cover = new St.Widget({
+        style_class: 'media-control-card-cover',
+        x_expand: true,
+        y_expand: true,
+      });
+      const overlay = new St.Widget({
+        style_class: 'media-control-card-overlay',
+        x_expand: true,
+        y_expand: true,
+      });
+
+      const content = new St.BoxLayout({
+        vertical: true,
+        style_class: 'media-control-card-content',
+        x_expand: true,
+        y_expand: true,
+      });
+
+      const spacer = new St.Widget({ y_expand: true });
+
+      const bottomRow = new St.BoxLayout({
+        style_class: 'media-control-card-bottom',
+        y_align: Clutter.ActorAlign.END,
+      });
+
+      const textBox = new St.BoxLayout({
+        vertical: true,
+        style_class: 'media-control-card-text',
+        x_expand: true,
+        y_align: Clutter.ActorAlign.END,
+      });
+      this._titleScroller = new ScrollingTitle();
+      this._subtitleLabel = new St.Label({
+        style_class: 'media-control-card-subtitle',
+      });
+      this._subtitleLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+      textBox.add_child(this._titleScroller.actor);
+      textBox.add_child(this._subtitleLabel);
+
+      const controls = new St.BoxLayout({
+        style_class: 'media-control-card-controls',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      const prev = makeCircleButton(
+        'media-skip-backward-symbolic',
+        'media-control-circle-button',
+        13,
+      );
+      const next = makeCircleButton(
+        'media-skip-forward-symbolic',
+        'media-control-circle-button',
+        13,
+      );
+      const play = makeCircleButton(
+        'media-playback-start-symbolic',
+        'media-control-play-button',
+        20,
+      );
+      this.prevButton = prev.button;
+      this.nextButton = next.button;
+      this.playButton = play.button;
+      this._playIcon = play.icon;
+      controls.add_child(prev.button);
+      controls.add_child(play.button);
+      controls.add_child(next.button);
+
+      bottomRow.add_child(textBox);
+      bottomRow.add_child(controls);
+
+      content.add_child(spacer);
+      content.add_child(bottomRow);
+
+      card.add_child(this._cover);
+      card.add_child(overlay);
+      card.add_child(content);
+      this.add_child(card);
+    }
+
+    setCoverUrl(url: string) {
+      if (url) {
+        const safe = url.replace(/"/g, '%22');
+        this._cover.style = `background-image: url("${safe}"); background-size: cover; background-position: center;`;
+        this._cover.add_style_class_name('media-control-card-cover-loaded');
+      }
+      else {
+        this._cover.style = null;
+        this._cover.remove_style_class_name('media-control-card-cover-loaded');
+      }
+    }
+
+    setPlaying(playing: boolean) {
+      this._playIcon.icon_name = playing
+        ? 'media-playback-pause-symbolic'
+        : 'media-playback-start-symbolic';
+    }
+
+    setTitle(title: string) {
+      this._titleScroller.setText(title);
+    }
+
+    override destroy(): void {
+      this._titleScroller.destroy();
+      super.destroy();
+    }
+
+    setSubtitle(subtitle: string) {
+      this._subtitleLabel.text = subtitle;
+    }
+  },
+);
+
+export const MediaIndicator = GObject.registerClass(
+  class MediaIndicator extends PanelMenu.Button {
+    private _mpris!: MprisSource;
+    private _activePlayer!: MprisPlayer | null;
+    private _playerChangedId!: number;
+    private _watchIds!: Map<MprisPlayer, number>;
+
+    private _icon!: St.Icon;
+    private _coverButton!: St.Button;
+    private _coverBg!: St.Widget;
+    private _coverPlayIcon!: St.Icon;
+    private _panelCoverHovered = false;
+    private _label!: St.Label;
+    private _cardItem!: InstanceType<typeof MediaCardItem>;
+    private _emptyItem!: PopupMenu.PopupMenuItem;
+
+    _init() {
+      this._activePlayer = null;
+      this._playerChangedId = 0;
+      this._watchIds = new Map();
+
+      super._init(0.5, 'Now Playing');
+
+      const box = new St.BoxLayout({
+        style_class: 'media-control-panel-box',
+      });
+      this._icon = new St.Icon({
+        icon_name: 'audio-x-generic-symbolic',
+        style_class: 'system-status-icon',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      this._coverBg = new St.Widget({
+        style_class: 'media-control-panel-cover-bg',
+        x_expand: true,
+        y_expand: true,
+      });
+      this._coverPlayIcon = new St.Icon({
+        style_class: 'media-control-panel-play-icon',
+        icon_name: 'media-playback-start-symbolic',
+        icon_size: 12,
+        x_align: Clutter.ActorAlign.CENTER,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      const coverBin = new St.Widget({
+        layout_manager: new Clutter.BinLayout(),
+        x_expand: true,
+        y_expand: true,
+      });
+      coverBin.add_child(this._coverBg);
+      coverBin.add_child(this._coverPlayIcon);
+      this._coverPlayIcon.hide();
+      this._coverButton = new St.Button({
+        style_class: 'media-control-panel-cover-button',
+        child: coverBin,
+        can_focus: true,
+        y_align: Clutter.ActorAlign.CENTER,
+        track_hover: true,
+      });
+      this._coverButton.hide();
+      this._coverButton.connect('enter-event', () => this._setPanelCoverHovered(true));
+      this._coverButton.connect('leave-event', () => this._setPanelCoverHovered(false));
+      this._coverButton.connect('button-press-event', (_actor, event) => {
+        if (event.get_button() !== Clutter.BUTTON_PRIMARY)
+          return Clutter.EVENT_PROPAGATE;
+        this._activePlayer?.playPause();
+        return Clutter.EVENT_STOP;
+      });
+      this._label = new St.Label({
+        style_class: 'media-control-panel-label',
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      this._label.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+      this._label.hide();
+      box.add_child(this._icon);
+      box.add_child(this._coverButton);
+      box.add_child(this._label);
+      this.add_child(box);
+
+      this._mpris = new MprisSource();
+      this._mpris.connect('player-added', () => this._onPlayersChanged());
+      this._mpris.connect('player-removed', () => this._onPlayersChanged());
+
+      this._buildMenu();
+      this._onPlayersChanged();
+    }
+
+    _buildMenu() {
+      const menu = this.menu as PopupMenu.PopupMenu;
+      menu.box.add_style_class_name('media-control-menu-box');
+
+      this._cardItem = new MediaCardItem();
+      this._cardItem.prevButton.connect(
+        'clicked',
+        () => this._activePlayer?.previous(),
+      );
+      this._cardItem.nextButton.connect(
+        'clicked',
+        () => this._activePlayer?.next(),
+      );
+      this._cardItem.playButton.connect(
+        'clicked',
+        () => this._activePlayer?.playPause(),
+      );
+
+      this._emptyItem = new PopupMenu.PopupMenuItem('No media playing', {
+        reactive: false,
+        can_focus: false,
+      });
+
+      menu.addMenuItem(this._cardItem);
+      menu.addMenuItem(this._emptyItem);
+    }
+
+    _onPlayersChanged() {
+      for (const [player, id] of this._watchIds) {
+        player.disconnect(id);
+        this._watchIds.delete(player);
+      }
+
+      if (this._activePlayer && this._playerChangedId) {
+        this._activePlayer.disconnect(this._playerChangedId);
+        this._playerChangedId = 0;
+      }
+
+      this._activePlayer = pickActivePlayer(
+        this._mpris.players as MprisPlayer[],
+      );
+
+      for (const player of this._mpris.players as MprisPlayer[]) {
+        const id = player.connect('changed', () => this._onPlayerStateChanged());
+        this._watchIds.set(player, id);
+      }
+
+      if (this._activePlayer) {
+        this._playerChangedId = this._activePlayer.connect(
+          'changed',
+          () => this._updateDisplay(),
+        );
+      }
+
+      this._updateDisplay();
+    }
+
+    _onPlayerStateChanged() {
+      const next = pickActivePlayer(this._mpris.players as MprisPlayer[]);
+      if (next !== this._activePlayer)
+        this._onPlayersChanged();
+      else
+        this._updateDisplay();
+    }
+
+    _updateDisplay() {
+      const player = this._activePlayer;
+      const hasPlayer = player !== null;
+
+      this._emptyItem.visible = !hasPlayer;
+      this._cardItem.visible = hasPlayer;
+
+      if (!player) {
+        this._setPanelCover('');
+        this._setPanelCoverHovered(false);
+        this._coverButton.hide();
+        this._icon.show();
+        this._label.hide();
+        this._coverButton.reactive = false;
+        this.setSensitive(true);
+        return;
+      }
+
+      const title = player.trackTitle;
+      const artists = formatArtists(player.trackArtists);
+      const playing = player.status === 'Playing';
+
+      this._icon.hide();
+      this._coverButton.show();
+      this._coverButton.reactive = true;
+      this._setPanelCover(player.trackCoverUrl);
+      this._setPanelPlaying(playing);
+
+      if (title) {
+        this._label.text = truncate(title, PANEL_MAX_CHARS);
+        this._label.show();
+      }
+      else {
+        this._label.hide();
+      }
+
+      this._cardItem.setCoverUrl(player.trackCoverUrl);
+      this._cardItem.setTitle(title || 'Unknown title');
+      this._cardItem.setSubtitle(artists || 'Unknown artist');
+      this._cardItem.setPlaying(playing);
+
+      this._cardItem.prevButton.reactive = player.canGoPrevious;
+      this._cardItem.nextButton.reactive = player.canGoNext;
+      this.setSensitive(true);
+    }
+
+    _setPanelCover(url: string) {
+      if (url) {
+        const safe = url.replace(/"/g, '%22');
+        this._coverBg.style = `background-image: url("${safe}"); background-size: cover; background-position: center;`;
+        this._coverBg.add_style_class_name('media-control-panel-cover-bg-loaded');
+      }
+      else {
+        this._coverBg.style = null;
+        this._coverBg.remove_style_class_name('media-control-panel-cover-bg-loaded');
+      }
+    }
+
+    _setPanelPlaying(playing: boolean) {
+      this._coverPlayIcon.icon_name = playing
+        ? 'media-playback-pause-symbolic'
+        : 'media-playback-start-symbolic';
+    }
+
+    _setPanelCoverHovered(hovered: boolean) {
+      if (this._panelCoverHovered === hovered)
+        return;
+      this._panelCoverHovered = hovered;
+      this._syncPanelCoverView();
+    }
+
+    _syncPanelCoverView() {
+      if (this._panelCoverHovered) {
+        this._coverBg.hide();
+        this._coverPlayIcon.show();
+      }
+      else {
+        this._coverBg.show();
+        this._coverPlayIcon.hide();
+      }
+    }
+
+    override destroy(): void {
+      if (!this._watchIds) {
+        super.destroy();
+        return;
+      }
+
+      for (const [player, id] of this._watchIds) {
+        player.disconnect(id);
+        this._watchIds.delete(player);
+      }
+
+      if (this._activePlayer && this._playerChangedId) {
+        this._activePlayer.disconnect(this._playerChangedId);
+        this._playerChangedId = 0;
+      }
+
+      super.destroy();
+    }
+  },
+);
