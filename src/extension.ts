@@ -25,8 +25,7 @@ export default class MediaControlExtension extends Extension {
   }
 
   disable() {
-    for (const id of this._settingsChangedIds)
-      this._settings?.disconnect(id);
+    for (const id of this._settingsChangedIds) this._settings?.disconnect(id);
     this._settingsChangedIds = [];
 
     this._indicator?.destroy();
@@ -35,8 +34,7 @@ export default class MediaControlExtension extends Extension {
   }
 
   private _addIndicator() {
-    if (!this._settings)
-      return;
+    if (!this._settings) return;
 
     this._indicator = new MediaIndicator();
     this._indicator.bindSettings(this._settings);
@@ -46,8 +44,7 @@ export default class MediaControlExtension extends Extension {
   }
 
   private _repositionIndicator() {
-    if (!this._settings || !this._indicator)
-      return;
+    if (!this._settings || !this._indicator) return;
 
     this._indicator.destroy();
     this._indicator = null;

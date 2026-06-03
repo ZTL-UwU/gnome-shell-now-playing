@@ -1,26 +1,26 @@
 {
   "name": "now-playing",
-  "type": "module",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "tsdown",
-    "lint": "eslint",
-    "lint:fix": "eslint --fix",
-    "lint:dist": "eslint dist --fix --no-ignore",
+    "lint": "oxlint . && oxfmt --check",
+    "lint:fix": "oxlint . --fix && oxfmt",
+    "lint:dist": "oxlint dist --fix --no-ignore && oxfmt",
     "typecheck": "tsc --noEmit"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@girs/gjs": "^4.0.4",
     "@girs/gnome-shell": "^50.0.0"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.0.0",
     "@types/bun": "latest",
-    "eslint": "^10.4.1",
+    "oxfmt": "^0.53.0",
+    "oxlint": "^1.68.0",
     "taze": "^19.14.1",
     "tsdown": "^0.22.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
   }
 }

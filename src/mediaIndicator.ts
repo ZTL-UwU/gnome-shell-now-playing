@@ -32,20 +32,17 @@ interface MprisPlayer {
 }
 
 function formatArtists(artists: string | string[]): string {
-  if (Array.isArray(artists))
-    return artists.join(', ');
+  if (Array.isArray(artists)) return artists.join(', ');
   return artists;
 }
 
 function pickActivePlayer(players: MprisPlayer[]): MprisPlayer | null {
-  if (players.length === 0)
-    return null;
-  return players.find(player => player.status === 'Playing') ?? players[0];
+  if (players.length === 0) return null;
+  return players.find((player) => player.status === 'Playing') ?? players[0];
 }
 
 function truncate(text: string, maxChars: number): string {
-  if (text.length <= maxChars)
-    return text;
+  if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars - 1)}…`;
 }
 
@@ -79,10 +76,8 @@ class ScrollingTitle {
     this._clip.add_child(this._label);
     this.actor = this._clip;
     this._clip.connect('notify::visible', () => {
-      if (this._clip.visible)
-        this._scheduleScrollUpdate();
-      else
-        this._stopScroll();
+      if (this._clip.visible) this._scheduleScrollUpdate();
+      else this._stopScroll();
     });
   }
 
@@ -108,8 +103,7 @@ class ScrollingTitle {
     }
 
     const update = () => {
-      if (this._clip.width <= 0)
-        return;
+      if (this._clip.width <= 0) return;
       if (this._layoutHandlerId) {
         this._clip.disconnect(this._layoutHandlerId);
         this._layoutHandlerId = 0;
@@ -138,40 +132,33 @@ class ScrollingTitle {
     this._scrollPosition = 0;
     this._scrollDirection = -1;
     this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
-    this._timeoutId = GLib.timeout_add(
-      GLib.PRIORITY_DEFAULT,
-      TITLE_SCROLL_INTERVAL_MS,
-      () => {
-        if (!this._clip.visible) {
-          this._stopScroll();
-          return GLib.SOURCE_REMOVE;
-        }
+    this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, TITLE_SCROLL_INTERVAL_MS, () => {
+      if (!this._clip.visible) {
+        this._stopScroll();
+        return GLib.SOURCE_REMOVE;
+      }
 
-        if (this._pauseTicks > 0) {
-          this._pauseTicks--;
-          return GLib.SOURCE_CONTINUE;
-        }
-
-        const pxPerTick
-          = this._scrollDirection === 1
-            ? TITLE_SCROLL_PX_PER_TICK * 2
-            : TITLE_SCROLL_PX_PER_TICK;
-        this._scrollPosition += this._scrollDirection * pxPerTick;
-        if (this._scrollPosition <= -this._overflow) {
-          this._scrollPosition = -this._overflow;
-          this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
-          this._scrollDirection = 1;
-        }
-        else if (this._scrollPosition >= 0) {
-          this._scrollPosition = 0;
-          this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
-          this._scrollDirection = -1;
-        }
-
-        this._label.translation_x = this._scrollPosition;
+      if (this._pauseTicks > 0) {
+        this._pauseTicks--;
         return GLib.SOURCE_CONTINUE;
-      },
-    );
+      }
+
+      const pxPerTick =
+        this._scrollDirection === 1 ? TITLE_SCROLL_PX_PER_TICK * 2 : TITLE_SCROLL_PX_PER_TICK;
+      this._scrollPosition += this._scrollDirection * pxPerTick;
+      if (this._scrollPosition <= -this._overflow) {
+        this._scrollPosition = -this._overflow;
+        this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
+        this._scrollDirection = 1;
+      } else if (this._scrollPosition >= 0) {
+        this._scrollPosition = 0;
+        this._pauseTicks = TITLE_SCROLL_PAUSE_TICKS;
+        this._scrollDirection = -1;
+      }
+
+      this._label.translation_x = this._scrollPosition;
+      return GLib.SOURCE_CONTINUE;
+    });
   }
 
   private _stopScroll() {
@@ -312,8 +299,7 @@ const MediaCardItem = GObject.registerClass(
         const safe = url.replace(/"/g, '%22');
         this._cover.style = `background-image: url("${safe}"); background-size: cover; background-position: center;`;
         this._cover.add_style_class_name('media-control-card-cover-loaded');
-      }
-      else {
+      } else {
         this._cover.style = null;
         this._cover.remove_style_class_name('media-control-card-cover-loaded');
       }
@@ -426,8 +412,7 @@ export const MediaIndicator = GObject.registerClass(
       this._coverButton.connect('enter-event', () => this._setPanelCoverHovered(true));
       this._coverButton.connect('leave-event', () => this._setPanelCoverHovered(false));
       this._coverButton.connect('button-press-event', (_actor, event) => {
-        if (event.get_button() !== Clutter.BUTTON_PRIMARY)
-          return Clutter.EVENT_PROPAGATE;
+        if (event.get_button() !== Clutter.BUTTON_PRIMARY) return Clutter.EVENT_PROPAGATE;
         this._activePlayer?.playPause();
         return Clutter.EVENT_STOP;
       });
@@ -452,13 +437,11 @@ export const MediaIndicator = GObject.registerClass(
     }
 
     bindSettings(settings: Gio.Settings) {
-      if (this._grayscaleSettingsId)
-        return;
+      if (this._grayscaleSettingsId) return;
 
       this._settings = settings;
-      this._grayscaleSettingsId = settings.connect(
-        `changed::${ALBUM_ART_GRAYSCALE_KEY}`,
-        () => this._applyAlbumArtGrayscale(),
+      this._grayscaleSettingsId = settings.connect(`changed::${ALBUM_ART_GRAYSCALE_KEY}`, () =>
+        this._applyAlbumArtGrayscale(),
       );
       this._hideWhenNoPlayersSettingsId = settings.connect(
         `changed::${HIDE_WHEN_NO_PLAYERS_KEY}`,
@@ -491,10 +474,8 @@ export const MediaIndicator = GObject.registerClass(
           clipYAlign: Clutter.ActorAlign.CENTER,
         });
         this._panelLabelActor = this._panelScroller.actor;
-        if (this._panelTitle)
-          this._panelScroller.setText(this._panelTitle);
-      }
-      else {
+        if (this._panelTitle) this._panelScroller.setText(this._panelTitle);
+      } else {
         this._panelStaticLabel = new St.Label({
           style_class: 'media-control-panel-label',
           y_align: Clutter.ActorAlign.CENTER,
@@ -505,19 +486,15 @@ export const MediaIndicator = GObject.registerClass(
           this._panelStaticLabel.text = truncate(this._panelTitle, PANEL_MAX_CHARS);
       }
 
-      if (oldActor && this._panelBox.contains(oldActor))
-        this._panelBox.remove_child(oldActor);
+      if (oldActor && this._panelBox.contains(oldActor)) this._panelBox.remove_child(oldActor);
       this._panelBox.add_child(this._panelLabelActor);
-      if (wasVisible)
-        this._panelLabelActor.show();
-      else
-        this._panelLabelActor.hide();
+      if (wasVisible) this._panelLabelActor.show();
+      else this._panelLabelActor.hide();
     }
 
     _setPanelTitle(title: string) {
       this._panelTitle = title;
-      if (this._panelScroller)
-        this._panelScroller.setText(title);
+      if (this._panelScroller) this._panelScroller.setText(title);
       else if (this._panelStaticLabel)
         this._panelStaticLabel.text = truncate(title, PANEL_MAX_CHARS);
     }
@@ -527,18 +504,9 @@ export const MediaIndicator = GObject.registerClass(
       menu.box.add_style_class_name('media-control-menu-box');
 
       this._cardItem = new MediaCardItem();
-      this._cardItem.prevButton.connect(
-        'clicked',
-        () => this._activePlayer?.previous(),
-      );
-      this._cardItem.nextButton.connect(
-        'clicked',
-        () => this._activePlayer?.next(),
-      );
-      this._cardItem.playButton.connect(
-        'clicked',
-        () => this._activePlayer?.playPause(),
-      );
+      this._cardItem.prevButton.connect('clicked', () => this._activePlayer?.previous());
+      this._cardItem.nextButton.connect('clicked', () => this._activePlayer?.next());
+      this._cardItem.playButton.connect('clicked', () => this._activePlayer?.playPause());
 
       this._emptyItem = new PopupMenu.PopupMenuItem('No media playing', {
         reactive: false,
@@ -560,9 +528,7 @@ export const MediaIndicator = GObject.registerClass(
         this._playerChangedId = 0;
       }
 
-      this._activePlayer = pickActivePlayer(
-        this._mpris.players as MprisPlayer[],
-      );
+      this._activePlayer = pickActivePlayer(this._mpris.players as MprisPlayer[]);
 
       for (const player of this._mpris.players as MprisPlayer[]) {
         const id = player.connect('changed', () => this._onPlayerStateChanged());
@@ -570,10 +536,7 @@ export const MediaIndicator = GObject.registerClass(
       }
 
       if (this._activePlayer) {
-        this._playerChangedId = this._activePlayer.connect(
-          'changed',
-          () => this._updateDisplay(),
-        );
+        this._playerChangedId = this._activePlayer.connect('changed', () => this._updateDisplay());
       }
 
       this._updateDisplay();
@@ -581,10 +544,8 @@ export const MediaIndicator = GObject.registerClass(
 
     _onPlayerStateChanged() {
       const next = pickActivePlayer(this._mpris.players as MprisPlayer[]);
-      if (next !== this._activePlayer)
-        this._onPlayersChanged();
-      else
-        this._updateDisplay();
+      if (next !== this._activePlayer) this._onPlayersChanged();
+      else this._updateDisplay();
     }
 
     _updateDisplay() {
@@ -602,8 +563,7 @@ export const MediaIndicator = GObject.registerClass(
         this._panelLabelActor.hide();
         this._coverButton.reactive = false;
         this.setSensitive(true);
-      }
-      else {
+      } else {
         const title = player.trackTitle;
         const artists = formatArtists(player.trackArtists);
         const playing = player.status === 'Playing';
@@ -617,8 +577,7 @@ export const MediaIndicator = GObject.registerClass(
         if (title) {
           this._setPanelTitle(title);
           this._panelLabelActor.show();
-        }
-        else {
+        } else {
           this._panelLabelActor.hide();
         }
 
@@ -638,10 +597,8 @@ export const MediaIndicator = GObject.registerClass(
     _updatePanelVisibility() {
       const hideWhenEmpty = this._settings?.get_boolean(HIDE_WHEN_NO_PLAYERS_KEY) ?? false;
       const hasPlayers = (this._mpris.players as MprisPlayer[]).length > 0;
-      if (hideWhenEmpty && !hasPlayers)
-        this.hide();
-      else
-        this.show();
+      if (hideWhenEmpty && !hasPlayers) this.hide();
+      else this.show();
     }
 
     _setPanelCover(url: string) {
@@ -649,8 +606,7 @@ export const MediaIndicator = GObject.registerClass(
         const safe = url.replace(/"/g, '%22');
         this._coverBg.style = `background-image: url("${safe}"); background-size: cover; background-position: center;`;
         this._coverBg.add_style_class_name('media-control-panel-cover-bg-loaded');
-      }
-      else {
+      } else {
         this._coverBg.style = null;
         this._coverBg.remove_style_class_name('media-control-panel-cover-bg-loaded');
       }
@@ -663,8 +619,7 @@ export const MediaIndicator = GObject.registerClass(
     }
 
     _setPanelCoverHovered(hovered: boolean) {
-      if (this._panelCoverHovered === hovered)
-        return;
+      if (this._panelCoverHovered === hovered) return;
       this._panelCoverHovered = hovered;
       this._syncPanelCoverView();
     }
@@ -673,8 +628,7 @@ export const MediaIndicator = GObject.registerClass(
       if (this._panelCoverHovered) {
         this._coverBg.hide();
         this._coverPlayIcon.show();
-      }
-      else {
+      } else {
         this._coverBg.show();
         this._coverPlayIcon.hide();
       }
@@ -687,8 +641,7 @@ export const MediaIndicator = GObject.registerClass(
           this._panelCoverDesaturate = new Clutter.DesaturateEffect({ factor: 1.0 });
           this._coverBg.add_effect(this._panelCoverDesaturate);
         }
-      }
-      else if (this._panelCoverDesaturate) {
+      } else if (this._panelCoverDesaturate) {
         this._coverBg.remove_effect(this._panelCoverDesaturate);
         this._panelCoverDesaturate = null;
       }

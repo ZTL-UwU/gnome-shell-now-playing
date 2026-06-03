@@ -30,10 +30,9 @@ export default class MediaControlPreferences extends ExtensionPreferences {
 
     const setPositionRowFromSettings = () => {
       const index = PANEL_POSITIONS.indexOf(
-        settings.get_string(PANEL_POSITION_KEY) as typeof PANEL_POSITIONS[number],
+        settings.get_string(PANEL_POSITION_KEY) as (typeof PANEL_POSITIONS)[number],
       );
-      if (index >= 0)
-        positionRow.selected = index;
+      if (index >= 0) positionRow.selected = index;
     };
 
     setPositionRowFromSettings();
@@ -52,12 +51,7 @@ export default class MediaControlPreferences extends ExtensionPreferences {
       }),
     });
 
-    settings.bind(
-      PANEL_INDEX_KEY,
-      indexRow,
-      'value',
-      Gio.SettingsBindFlags.DEFAULT,
-    );
+    settings.bind(PANEL_INDEX_KEY, indexRow, 'value', Gio.SettingsBindFlags.DEFAULT);
 
     const hideWhenEmptyRow = new Adw.SwitchRow({
       title: 'Hide when no players',
@@ -74,12 +68,7 @@ export default class MediaControlPreferences extends ExtensionPreferences {
       title: 'Scroll panel label',
       subtitle: 'Scroll long track titles instead of truncating them.',
     });
-    settings.bind(
-      PANEL_LABEL_SCROLL_KEY,
-      scrollLabelRow,
-      'active',
-      Gio.SettingsBindFlags.DEFAULT,
-    );
+    settings.bind(PANEL_LABEL_SCROLL_KEY, scrollLabelRow, 'active', Gio.SettingsBindFlags.DEFAULT);
 
     group.add(positionRow);
     group.add(indexRow);
@@ -94,12 +83,7 @@ export default class MediaControlPreferences extends ExtensionPreferences {
       title: 'Grayscale album art',
       subtitle: 'Show album artwork in black and white.',
     });
-    settings.bind(
-      ALBUM_ART_GRAYSCALE_KEY,
-      grayscaleRow,
-      'active',
-      Gio.SettingsBindFlags.DEFAULT,
-    );
+    settings.bind(ALBUM_ART_GRAYSCALE_KEY, grayscaleRow, 'active', Gio.SettingsBindFlags.DEFAULT);
     appearanceGroup.add(grayscaleRow);
     page.add(appearanceGroup);
 

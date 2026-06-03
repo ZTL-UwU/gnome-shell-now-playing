@@ -17,7 +17,8 @@ make              # compiles TypeScript and copies assets into dist/
 ```
 
 - `bun run build` — compile TypeScript to `dist/`
-- `bun run lint` — lint source
+- `bun run lint` — lint source (oxlint)
+- `bun run format` — format source (oxfmt)
 - `bun run typecheck` — typecheck without emitting
 
 ### Local install & testing
