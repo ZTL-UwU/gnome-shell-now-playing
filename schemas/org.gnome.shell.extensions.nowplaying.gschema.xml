@@ -27,5 +27,10 @@
       <summary>Hide when no players</summary>
       <description>Remove the panel indicator when no media players are available.</description>
     </key>
+    <key name="panel-label-scroll" type="b">
+      <default>false</default>
+      <summary>Scroll panel label</summary>
+      <description>Scroll long track titles in the panel instead of truncating them.</description>
+    </key>
   </schema>
 </schemalist>

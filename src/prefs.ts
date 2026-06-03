@@ -8,6 +8,7 @@ const PANEL_POSITION_KEY = 'panel-position';
 const PANEL_INDEX_KEY = 'panel-index';
 const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
 const HIDE_WHEN_NO_PLAYERS_KEY = 'hide-when-no-players';
+const PANEL_LABEL_SCROLL_KEY = 'panel-label-scroll';
 const PANEL_POSITIONS = ['left', 'center', 'right'] as const;
 
 export default class MediaControlPreferences extends ExtensionPreferences {
@@ -69,9 +70,21 @@ export default class MediaControlPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
+    const scrollLabelRow = new Adw.SwitchRow({
+      title: 'Scroll panel label',
+      subtitle: 'Scroll long track titles instead of truncating them.',
+    });
+    settings.bind(
+      PANEL_LABEL_SCROLL_KEY,
+      scrollLabelRow,
+      'active',
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
     group.add(positionRow);
     group.add(indexRow);
     group.add(hideWhenEmptyRow);
+    group.add(scrollLabelRow);
     page.add(group);
 
     const appearanceGroup = new Adw.PreferencesGroup({

@@ -11,6 +11,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 const ALBUM_ART_GRAYSCALE_KEY = 'album-art-grayscale';
 const HIDE_WHEN_NO_PLAYERS_KEY = 'hide-when-no-players';
+const PANEL_LABEL_SCROLL_KEY = 'panel-label-scroll';
 const PANEL_MAX_CHARS = 24;
 const TITLE_SCROLL_INTERVAL_MS = 50;
 const TITLE_SCROLL_PX_PER_TICK = 1;
@@ -48,6 +49,12 @@ function truncate(text: string, maxChars: number): string {
   return `${text.slice(0, maxChars - 1)}…`;
 }
 
+interface ScrollingTitleOptions {
+  labelStyleClass?: string;
+  clipStyleClass?: string;
+  clipYAlign?: Clutter.ActorAlign;
+}
+
 class ScrollingTitle {
   readonly actor: St.Widget;
   private readonly _clip: St.Widget;
@@ -59,14 +66,15 @@ class ScrollingTitle {
   private _pauseTicks = 0;
   private _overflow = 0;
 
-  constructor() {
+  constructor(options: ScrollingTitleOptions = {}) {
     this._label = new St.Label({
-      style_class: 'media-control-card-title',
+      style_class: options.labelStyleClass ?? 'media-control-card-title',
     });
     this._clip = new St.Widget({
-      style_class: 'media-control-card-title-clip',
+      style_class: options.clipStyleClass ?? 'media-control-card-title-clip',
       clip_to_allocation: true,
       x_expand: true,
+      ...(options.clipYAlign !== undefined ? { y_align: options.clipYAlign } : {}),
     });
     this._clip.add_child(this._label);
     this.actor = this._clip;
@@ -362,8 +370,13 @@ export const MediaIndicator = GObject.registerClass(
     private _settings!: Gio.Settings;
     private _grayscaleSettingsId = 0;
     private _hideWhenNoPlayersSettingsId = 0;
+    private _panelLabelScrollSettingsId = 0;
     private _panelCoverHovered = false;
-    private _label!: St.Label;
+    private _panelBox!: St.BoxLayout;
+    private _panelLabelActor!: St.Widget;
+    private _panelScroller: ScrollingTitle | null = null;
+    private _panelStaticLabel: St.Label | null = null;
+    private _panelTitle = '';
     private _cardItem!: InstanceType<typeof MediaCardItem>;
     private _emptyItem!: PopupMenu.PopupMenuItem;
 
@@ -374,7 +387,7 @@ export const MediaIndicator = GObject.registerClass(
 
       super._init(0.5, 'Now Playing');
 
-      const box = new St.BoxLayout({
+      this._panelBox = new St.BoxLayout({
         style_class: 'media-control-panel-box',
       });
       this._icon = new St.Icon({
@@ -418,16 +431,17 @@ export const MediaIndicator = GObject.registerClass(
         this._activePlayer?.playPause();
         return Clutter.EVENT_STOP;
       });
-      this._label = new St.Label({
+      this._panelStaticLabel = new St.Label({
         style_class: 'media-control-panel-label',
         y_align: Clutter.ActorAlign.CENTER,
       });
-      this._label.clutter_text.ellipsize = Pango.EllipsizeMode.END;
-      this._label.hide();
-      box.add_child(this._icon);
-      box.add_child(this._coverButton);
-      box.add_child(this._label);
-      this.add_child(box);
+      this._panelStaticLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+      this._panelLabelActor = this._panelStaticLabel;
+      this._panelBox.add_child(this._icon);
+      this._panelBox.add_child(this._coverButton);
+      this._panelBox.add_child(this._panelLabelActor);
+      this._panelLabelActor.hide();
+      this.add_child(this._panelBox);
 
       this._mpris = new MprisSource();
       this._mpris.connect('player-added', () => this._onPlayersChanged());
@@ -450,8 +464,62 @@ export const MediaIndicator = GObject.registerClass(
         `changed::${HIDE_WHEN_NO_PLAYERS_KEY}`,
         () => this._updatePanelVisibility(),
       );
+      this._panelLabelScrollSettingsId = settings.connect(
+        `changed::${PANEL_LABEL_SCROLL_KEY}`,
+        () => this._applyPanelLabelWidget(),
+      );
       this._applyAlbumArtGrayscale();
       this._updatePanelVisibility();
+      this._applyPanelLabelWidget();
+    }
+
+    _applyPanelLabelWidget() {
+      const scroll = this._settings?.get_boolean(PANEL_LABEL_SCROLL_KEY) ?? false;
+      const oldActor = this._panelLabelActor;
+      const wasVisible = oldActor?.visible ?? false;
+
+      if (this._panelScroller) {
+        this._panelScroller.destroy();
+        this._panelScroller = null;
+      }
+      this._panelStaticLabel = null;
+
+      if (scroll) {
+        this._panelScroller = new ScrollingTitle({
+          labelStyleClass: 'media-control-panel-label',
+          clipStyleClass: 'media-control-panel-label-clip',
+          clipYAlign: Clutter.ActorAlign.CENTER,
+        });
+        this._panelLabelActor = this._panelScroller.actor;
+        if (this._panelTitle)
+          this._panelScroller.setText(this._panelTitle);
+      }
+      else {
+        this._panelStaticLabel = new St.Label({
+          style_class: 'media-control-panel-label',
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._panelStaticLabel.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        this._panelLabelActor = this._panelStaticLabel;
+        if (this._panelTitle)
+          this._panelStaticLabel.text = truncate(this._panelTitle, PANEL_MAX_CHARS);
+      }
+
+      if (oldActor && this._panelBox.contains(oldActor))
+        this._panelBox.remove_child(oldActor);
+      this._panelBox.add_child(this._panelLabelActor);
+      if (wasVisible)
+        this._panelLabelActor.show();
+      else
+        this._panelLabelActor.hide();
+    }
+
+    _setPanelTitle(title: string) {
+      this._panelTitle = title;
+      if (this._panelScroller)
+        this._panelScroller.setText(title);
+      else if (this._panelStaticLabel)
+        this._panelStaticLabel.text = truncate(title, PANEL_MAX_CHARS);
     }
 
     _buildMenu() {
@@ -531,7 +599,7 @@ export const MediaIndicator = GObject.registerClass(
         this._setPanelCoverHovered(false);
         this._coverButton.hide();
         this._icon.show();
-        this._label.hide();
+        this._panelLabelActor.hide();
         this._coverButton.reactive = false;
         this.setSensitive(true);
       }
@@ -547,11 +615,11 @@ export const MediaIndicator = GObject.registerClass(
         this._setPanelPlaying(playing);
 
         if (title) {
-          this._label.text = truncate(title, PANEL_MAX_CHARS);
-          this._label.show();
+          this._setPanelTitle(title);
+          this._panelLabelActor.show();
         }
         else {
-          this._label.hide();
+          this._panelLabelActor.hide();
         }
 
         this._cardItem.setCoverUrl(player.trackCoverUrl);
@@ -650,6 +718,14 @@ export const MediaIndicator = GObject.registerClass(
       if (this._hideWhenNoPlayersSettingsId) {
         this._settings.disconnect(this._hideWhenNoPlayersSettingsId);
         this._hideWhenNoPlayersSettingsId = 0;
+      }
+      if (this._panelLabelScrollSettingsId) {
+        this._settings.disconnect(this._panelLabelScrollSettingsId);
+        this._panelLabelScrollSettingsId = 0;
+      }
+      if (this._panelScroller) {
+        this._panelScroller.destroy();
+        this._panelScroller = null;
       }
       if (this._panelCoverDesaturate) {
         this._coverBg.remove_effect(this._panelCoverDesaturate);

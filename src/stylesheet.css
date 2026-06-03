@@ -2,7 +2,8 @@
   spacing: 6px;
 }
 
-.media-control-panel-label {
+.media-control-panel-label-clip,
+.media-control-panel-box > .media-control-panel-label {
   max-width: 8em;
 }
 
