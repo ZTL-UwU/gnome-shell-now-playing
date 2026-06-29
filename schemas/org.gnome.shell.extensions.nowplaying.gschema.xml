@@ -32,5 +32,19 @@
       <summary>Scroll panel label</summary>
       <description>Scroll long track titles in the panel instead of truncating them.</description>
     </key>
+    <key name="player-filter-mode" type="s">
+      <default>'all'</default>
+      <summary>Player filter mode</summary>
+      <description>Which media players may be picked: every player ('all') or only whitelisted players ('whitelist').</description>
+      <choices>
+        <choice value='all'/>
+        <choice value='whitelist'/>
+      </choices>
+    </key>
+    <key name="player-filter-whitelist" type="as">
+      <default>['org.gnome.Music', 'io.bassi.Amberol', 'com.github.neithern.g4music', 'org.gnome.Decibels', 'com.jeffser.Nocturne', 'ca.edestcroix.Recordbox', 'org.gnome.Rhythmbox3', 'io.github.seadve.Mousai', 'org.gnome.Podcasts']</default>
+      <summary>Player whitelist</summary>
+      <description>App identifiers (desktop entries) allowed to be picked when the filter mode is 'whitelist'.</description>
+    </key>
   </schema>
 </schemalist>

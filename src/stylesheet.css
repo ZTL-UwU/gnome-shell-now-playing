@@ -21,6 +21,11 @@
   width: 18px;
   height: 18px;
   border-radius: 999px;
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.media-control-panel-cover-placeholder {
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .media-control-panel-cover-bg-loaded {
@@ -42,8 +47,8 @@
 }
 
 .media-control-card {
-  width: 400px;
-  height: 300px;
+  width: 380px;
+  height: 380px;
   border-radius: 18px;
 }
 
@@ -54,6 +59,10 @@
 
 .media-control-card-cover-loaded {
   background-color: transparent;
+}
+
+.media-control-card-cover-placeholder {
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .media-control-card-overlay {
